@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Revisão Humana x Custo do Erro – quanto revisar o que a IA faz</title>
+<meta name="description" content="Encontre o percentual ótimo de revisão humana (human-in-the-loop) conforme a precisão da IA, o custo da revisão e o custo de cada erro." />
+<style>
+  :root { --bg:#f6f5fb; --card:#fff; --text:#1d1a2e; --muted:#615d78; --accent:#7c3aed; --line:#e7e4f2; --ok:#1b8a5a; --bad:#c62828; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); }
+  header { padding:28px 5vw 8px; } header h1 { margin:0 0 6px; font-size:clamp(1.5rem,3vw,2.1rem); }
+  header p { margin:0; color:var(--muted); max-width:860px; }
+  main { padding:20px 5vw 40px; display:grid; gap:20px; }
+  .inputs { display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; }
+  h2 { margin:0 0 6px; font-size:1.05rem; }
+  label { display:block; font-size:.8rem; color:var(--muted); margin:10px 0 3px; }
+  input { width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:.95rem; }
+  input:focus { outline:2px solid var(--accent); border-color:transparent; }
+  input[type=range] { padding:0; border:0; }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px; }
+  .kpi { background:var(--bg); border-radius:12px; padding:14px; } .kpi small { color:var(--muted); display:block; }
+  .kpi b { font-size:1.5rem; font-variant-numeric:tabular-nums; }
+  .kpi.main { background:var(--accent); color:#fff; } .kpi.main small { color:#ece3ff; }
+  .verdict { margin-top:14px; padding:12px 14px; border-radius:10px; font-weight:600; line-height:1.5; background:#efe9ff; color:#4c1d95; }
+  table { width:100%; border-collapse:collapse; font-size:.9rem; margin-top:8px; }
+  th, td { padding:8px 10px; border-bottom:1px solid var(--line); text-align:right; font-variant-numeric:tabular-nums; }
+  th:first-child, td:first-child { text-align:left; } th { color:var(--muted); font-size:.76rem; text-transform:uppercase; }
+  tr.best { background:#efe9ff; font-weight:700; }
+  .note { font-size:.82rem; color:var(--muted); line-height:1.55; }
+  svg text { font-size:11px; fill:var(--muted); }
+  a { color:var(--accent); } footer { text-align:center; color:var(--muted); font-size:.85rem; padding:0 0 30px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🧑‍⚖️ Revisão Humana x Custo do Erro</h1>
+  <p>Revisar tudo que a IA faz é caro, e não revisar nada pode custar ainda mais. Esta calculadora encontra o <b>percentual ótimo de revisão humana</b>: revisar primeiro os itens em que a IA tem <b>menos confiança</b>, até o ponto em que revisar mais custa mais do que os erros que evita.</p>
+</header>
+<main>
+  <section class="inputs">
+    <article class="card">
+      <h2>🤖 A IA</h2>
+      <div class="two">
+        <div><label for="volume">Itens processados por mês</label><input id="volume" type="number" min="1" step="1000" value="40000"></div>
+        <div><label for="acc">Precisão da IA (%)</label><input id="acc" type="number" min="50" max="99.99" step="0.5" value="94"></div>
+      </div>
+      <label for="k">Quanto a confiança da IA separa erros de acertos: <b id="kLabel"></b></label>
+      <input id="k" type="range" min="1" max="10" step="0.5" value="4">
+      <p class="note">1 = a nota de confiança não ajuda (os erros estão espalhados). 10 = quase todos os erros estão entre os itens de menor confiança. Meça com um conjunto de teste rotulado.</p>
+    </article>
+    <article class="card">
+      <h2>🧑‍💼 A revisão humana</h2>
+      <div class="two">
+        <div><label for="review">Custo de revisar 1 item (R$)</label><input id="review" type="number" min="0" step="0.1" value="2.5"></div>
+        <div><label for="catch">Erros detectados pelo revisor (%)</label><input id="catch" type="number" min="0" max="100" step="1" value="95"></div>
+      </div>
+      <p class="note" style="margin-top:10px">Custo de revisão = custo por hora do revisor × tempo por item.</p>
+    </article>
+    <article class="card">
+      <h2>⚠️ O erro</h2>
+      <label for="error">Custo médio de um erro que chega ao cliente (R$)</label>
+      <input id="error" type="number" min="0" step="5" value="80">
+      <p class="note" style="margin-top:10px">Inclua retrabalho, chamado de reclamação, multa, estorno e risco reputacional. Em decisões reguladas (crédito, saúde, jurídico), considere revisão obrigatória independentemente do custo.</p>
+    </article>
+  </section>
+
+  <section class="card" aria-live="polite">
+    <h2 style="margin:0 0 12px">Resultado</h2>
+    <div class="kpis">
+      <div class="kpi main"><small>Revisão humana ótima</small><b id="kBest">–</b></div>
+      <div class="kpi"><small>Custo total por mês</small><b id="kCost">–</b></div>
+      <div class="kpi"><small>Erros que chegam ao cliente</small><b id="kErr">–</b></div>
+      <div class="kpi"><small>Economia x revisar 100%</small><b id="kSave100">–</b></div>
+      <div class="kpi"><small>Economia x não revisar</small><b id="kSave0">–</b></div>
+    </div>
+    <div class="verdict" id="verdict"></div>
+    <h2 style="margin:22px 0 4px;font-size:1rem">Custo total por percentual revisado</h2>
+    <svg id="chart" viewBox="0 0 760 250" width="100%" role="img" aria-label="Custo total por percentual de revisão humana"></svg>
+    <table>
+      <thead><tr><th>Estratégia</th><th>Itens revisados</th><th>Custo de revisão</th><th>Custo dos erros</th><th>Total/mês</th><th>Erros no cliente</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <p class="note">Modelo: revisando a fração f dos itens de menor confiança, a parcela dos erros encontrada é g(f) = 1 − (1 − f)^k.
+      Custo total = itens × f × custo de revisão + erros da IA × (1 − g(f) × detecção do revisor) × custo do erro.
+      O ótimo é o f de menor custo total (busca de 0% a 100% em passos de 0,5%). É um modelo simplificado: valide com dados reais da sua operação.</p>
+  </section>
+</main>
+<footer>Projeto autoral de <b>Monique da Silva Cruz</b> · <a href="https://github.com/MoniqueSilva79/revisao-humana-ia">código no GitHub</a> · cálculo 100% no navegador · valores ilustrativos</footer>
+<script>
+const $ = id => document.getElementById(id);
+const v = id => +$(id).value || 0;
+const brl = (x, d = 0) => x.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: d, maximumFractionDigits: d });
+const pctS = x => (x * 100).toFixed(1).replace('.', ',') + '%';
+const num = x => Math.round(x).toLocaleString('pt-BR');
+
+function at(f) {
+  const N = v('volume'), errs = N * (1 - Math.min(v('acc'), 99.99) / 100), k = v('k');
+  const found = 1 - Math.pow(1 - f, k);
+  const reach = errs * (1 - found * Math.min(v('catch'), 100) / 100);
+  const revCost = N * f * v('review'), errCost = reach * v('error');
+  return { f, revCost, errCost, total: revCost + errCost, reach, items: N * f };
+}
+
+function calc() {
+  $('kLabel').textContent = v('k').toString().replace('.', ',');
+  const curve = []; for (let i = 0; i <= 200; i++) curve.push(at(i / 200));
+  const best = curve.reduce((a, b) => (b.total < a.total ? b : a));
+  const none = curve[0], all = curve[200];
+  $('kBest').textContent = pctS(best.f);
+  $('kCost').textContent = brl(best.total);
+  $('kErr').textContent = num(best.reach) + '/mês';
+  $('kSave100').textContent = brl(all.total - best.total);
+  $('kSave0').textContent = brl(none.total - best.total);
+  $('verdict').textContent = best.f === 0
+    ? `Com esses números, revisar não compensa: o custo da revisão supera o dos erros evitados. Ainda assim, mantenha uma amostra pequena para monitorar a qualidade da IA.`
+    : `Revise os ${pctS(best.f)} dos itens de menor confiança (${num(best.items)} por mês). Assim você evita ${pctS(1 - best.reach / Math.max(none.reach, 1e-9))} dos erros que chegariam ao cliente, com custo total ${brl(all.total - best.total)} menor que revisar tudo.`;
+  const strategies = [['Não revisar', none], ['Revisão ótima', best], ['Revisar 25%', curve[50]], ['Revisar 50%', curve[100]], ['Revisar 100%', all]];
+  $('rows').innerHTML = strategies.map(([n, s]) => `<tr class="${n === 'Revisão ótima' ? 'best' : ''}"><td>${n}</td><td>${pctS(s.f)}</td><td>${brl(s.revCost)}</td><td>${brl(s.errCost)}</td><td>${brl(s.total)}</td><td>${num(s.reach)}</td></tr>`).join('');
+  draw(curve, best);
+}
+
+function draw(curve, best) {
+  const W = 760, H = 250, pl = 70, pr = 14, pt = 14, pb = 30;
+  const max = Math.max(...curve.map(c => Math.max(c.total, c.revCost, c.errCost))) * 1.05;
+  const x = f => pl + f * (W - pl - pr), y = val => pt + (1 - val / max) * (H - pt - pb);
+  let s = '';
+  for (let i = 0; i <= 4; i++) { const val = max * i / 4; s += `<line x1="${pl}" x2="${W - pr}" y1="${y(val)}" y2="${y(val)}" stroke="#e7e4f2"/><text x="${pl - 6}" y="${y(val) + 4}" text-anchor="end">R$ ${Math.round(val / 1000)} mil</text>`; }
+  for (let i = 0; i <= 10; i++) s += `<text x="${x(i / 10)}" y="${H - 10}" text-anchor="middle">${i * 10}%</text>`;
+  const line = (key, color, w, dash = '') => `<polyline points="${curve.map(c => `${x(c.f)},${y(c[key])}`).join(' ')}" fill="none" stroke="${color}" stroke-width="${w}" ${dash ? `stroke-dasharray="${dash}"` : ''}/>`;
+  s += line('revCost', '#94a3b8', 1.8, '5 4') + line('errCost', '#f87171', 1.8, '5 4') + line('total', '#7c3aed', 3);
+  s += `<circle cx="${x(best.f)}" cy="${y(best.total)}" r="6" fill="#7c3aed"/><text x="${x(best.f) + 8}" y="${y(best.total) - 8}" style="fill:#4c1d95;font-weight:700">ótimo: ${pctS(best.f)}</text>`;
+  s += `<text x="${W - pr}" y="${pt + 10}" text-anchor="end" style="fill:#7c3aed;font-weight:700">— custo total</text><text x="${W - pr}" y="${pt + 26}" text-anchor="end" style="fill:#94a3b8">- - custo de revisão</text><text x="${W - pr}" y="${pt + 42}" text-anchor="end" style="fill:#f87171">- - custo dos erros</text>`;
+  $('chart').innerHTML = s;
+}
+document.querySelectorAll('input').forEach(i => i.addEventListener('input', calc));
+calc();
+</script>
+</body>
+</html>
